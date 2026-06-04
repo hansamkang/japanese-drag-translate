@@ -2,7 +2,11 @@
   const POPUP_ID = "japanese-drag-translate-popup";
   const NAVER_BASE = "https://ja.dict.naver.com/#/search?query=";
   const ADS_URL = chrome.runtime.getURL("ads.json");
+  const KUROMOJI_SCRIPT_URL = chrome.runtime.getURL("vendor/kuromoji/kuromoji.js");
+  const KUROMOJI_DICT_URL = chrome.runtime.getURL("vendor/kuromoji/dict/");
+  const YOMIKATA_DEBUG = false;
   let adsCache = null;
+  let tokenizerPromise = null;
   let timer = null;
   let lastText = "";
 
@@ -12,6 +16,21 @@
 
   function cleanSelection(text) {
     return text.replace(/\s+/g, " ").trim().slice(0, 120);
+  }
+
+  function debugYomikata(message, data) {
+    if (!YOMIKATA_DEBUG) return;
+    console.info(`[일본어 드래그 번역] ${message}`, data || "");
+  }
+
+  function warnYomikata(message, error) {
+    console.warn(`[일본어 드래그 번역] ${message}`, error);
+  }
+
+  function katakanaToHiragana(text) {
+    return text.replace(/[\u30a1-\u30f6]/g, char =>
+      String.fromCharCode(char.charCodeAt(0) - 0x60)
+    );
   }
 
   function removePopup() {
@@ -30,6 +49,91 @@
 
   function isValidAd(ad) {
     return ad && ad.title && ad.description && ad.url;
+  }
+
+  function getTokenizer() {
+    if (tokenizerPromise) return tokenizerPromise;
+
+    tokenizerPromise = (async () => {
+      const start = performance.now();
+      debugYomikata("kuromoji tokenizer 초기화 시작", {
+        scriptUrl: KUROMOJI_SCRIPT_URL,
+        dictUrl: KUROMOJI_DICT_URL
+      });
+
+      if (!window.kuromoji) {
+        await import(KUROMOJI_SCRIPT_URL);
+      }
+
+      const kuromojiLib = window.kuromoji;
+      if (!kuromojiLib) {
+        throw new Error("kuromoji.js is not loaded");
+      }
+
+      return new Promise((resolve, reject) => {
+        kuromojiLib.builder({ dicPath: KUROMOJI_DICT_URL }).build((err, tokenizer) => {
+          const durationMs = Math.round(performance.now() - start);
+          if (err) {
+            reject(err);
+            return;
+          }
+
+          debugYomikata("kuromoji tokenizer 초기화 완료", {
+            durationMs
+          });
+          resolve(tokenizer);
+        });
+      });
+    })().catch(err => {
+      tokenizerPromise = null;
+      throw err;
+    });
+
+    return tokenizerPromise;
+  }
+
+  function getTokenReading(token) {
+    const reading = token.reading && token.reading !== "*" ? token.reading : "";
+    if (reading) return katakanaToHiragana(reading);
+
+    const surface = token.surface_form || "";
+    return looksJapanese(surface) ? surface : "";
+  }
+
+  async function getYomikata(text) {
+    const start = performance.now();
+    const tokenizer = await getTokenizer();
+    const tokens = tokenizer.tokenize(text);
+    const yomikata = tokens.map(getTokenReading).join("").trim();
+    const durationMs = Math.round(performance.now() - start);
+
+    debugYomikata("요미카타 분석 완료", {
+      durationMs,
+      selectedText: text,
+      yomikata
+    });
+
+    return yomikata;
+  }
+
+  async function setupYomikata(popup, text) {
+    const yomikataText = popup.querySelector(".jdt-yomikata-text");
+    if (!yomikataText) return;
+
+    try {
+      const result = await getYomikata(text);
+      if (!result || !document.body.contains(popup)) return;
+
+      yomikataText.textContent = result;
+      yomikataText.hidden = false;
+    } catch (err) {
+      warnYomikata("요미카타 분석 실패", {
+        selectedText: text,
+        error: err.message || String(err)
+      });
+      yomikataText.textContent = "";
+      yomikataText.hidden = true;
+    }
   }
 
   async function loadAds() {
@@ -103,7 +207,12 @@
     popup.id = POPUP_ID;
     popup.innerHTML = `
       <div class="jdt-header">
-        <div class="jdt-word"></div>
+        <div class="jdt-title">
+          <div class="jdt-word"></div>
+          <div class="jdt-yomikata" aria-live="polite">
+            <span class="jdt-yomikata-text" hidden></span>
+          </div>
+        </div>
         <button class="jdt-close" title="닫기">×</button>
       </div>
       <div class="jdt-result">한국어 번역 중...</div>
@@ -111,7 +220,7 @@
         <a class="jdt-naver" target="_blank" rel="noopener noreferrer">네이버 사전</a>
         <button class="jdt-copy">복사</button>
       </div>
-      <a class="jdt-ad" target="_blank" rel="noopener noreferrer" aria-label="광고" hidden>
+      <a class="jdt-ad" target="_blank" rel="noopener" aria-label="광고" hidden>
         <span class="jdt-ad-label">광고</span>
         <span class="jdt-ad-body">
           <span class="jdt-ad-title"></span>
@@ -178,7 +287,9 @@
       const translated = await translation;
       if (!document.body.contains(popup)) return;
       result.textContent = translated;
+      setTimeout(() => setupYomikata(popup, text), 0);
     } catch (err) {
+      console.warn("[일본어 드래그 번역] 번역 요청 실패", err);
       result.innerHTML = "자동 번역을 불러오지 못했어요.<br>아래 버튼으로 네이버 사전에서 확인해 주세요.";
       result.title = err.message || String(err);
     }

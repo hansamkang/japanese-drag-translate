@@ -21,7 +21,11 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["ads.json"],
+      "resources": [
+        "ads.json",
+        "vendor/kuromoji/kuromoji.js",
+        "vendor/kuromoji/dict/*.dat.gz"
+      ],
       "matches": ["<all_urls>"]
     }
   ],

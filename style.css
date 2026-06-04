@@ -28,6 +28,23 @@
   word-break: break-word;
 }
 
+#japanese-drag-translate-popup .jdt-title {
+  min-width: 0;
+}
+
+#japanese-drag-translate-popup .jdt-yomikata {
+  margin-top: 3px;
+  min-height: 16px;
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+#japanese-drag-translate-popup .jdt-yomikata-text[hidden] {
+  visibility: hidden;
+}
+
 #japanese-drag-translate-popup .jdt-close {
   border: 0;
   background: transparent;
