@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "일본어 드래그 번역",
-  "version": "0.3.0",
-  "description": "웹페이지에서 일본어를 드래그하면 한국어 번역 팝업과 네이버 일본어 사전 링크를 보여주는 Chrome 확장 프로그램입니다.",
+  "version": "0.4.0",
+  "description": "웹페이지에서 일본어를 드래그하면 한국어 번역, 히라가나 읽는법, 네이버 일본어 사전 링크를 보여주는 Chrome 확장 프로그램입니다.",
   "permissions": ["storage"],
   "host_permissions": [
     "https://translate.googleapis.com/*",

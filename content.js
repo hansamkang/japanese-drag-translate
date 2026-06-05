@@ -118,11 +118,19 @@
 
   async function setupYomikata(popup, text) {
     const yomikataText = popup.querySelector(".jdt-yomikata-text");
-    if (!yomikataText) return;
+    const yomikataSpinner = popup.querySelector(".jdt-yomikata-spinner");
+    if (!yomikataText || !yomikataSpinner) return;
+
+    yomikataText.textContent = "";
+    yomikataText.hidden = true;
+    yomikataSpinner.hidden = false;
 
     try {
       const result = await getYomikata(text);
-      if (!result || !document.body.contains(popup)) return;
+      if (!document.body.contains(popup)) return;
+
+      yomikataSpinner.hidden = true;
+      if (!result) return;
 
       yomikataText.textContent = result;
       yomikataText.hidden = false;
@@ -133,6 +141,7 @@
       });
       yomikataText.textContent = "";
       yomikataText.hidden = true;
+      yomikataSpinner.hidden = true;
     }
   }
 
@@ -210,6 +219,7 @@
         <div class="jdt-title">
           <div class="jdt-word"></div>
           <div class="jdt-yomikata" aria-live="polite">
+            <span class="jdt-yomikata-spinner" aria-label="요미카타 로딩 중" hidden></span>
             <span class="jdt-yomikata-text" hidden></span>
           </div>
         </div>
@@ -227,7 +237,7 @@
           <span class="jdt-ad-description"></span>
         </span>
       </a>
-      <div class="jdt-version">일본어 드래그 번역 v0.3</div>
+      <div class="jdt-version">일본어 드래그 번역 v0.4</div>
     `;
 
     popup.querySelector(".jdt-word").textContent = text;
